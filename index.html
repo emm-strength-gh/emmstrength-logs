@@ -19,7 +19,7 @@
     --body:'Inter', system-ui, -apple-system, sans-serif;
   }
   * { box-sizing:border-box; }
-  html,body { margin:0; }
+  html,body { margin:0; width:100%; max-width:100%; overflow-x:hidden; }
   body {
     background:var(--paper); color:var(--ink); font-family:var(--body);
     font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
@@ -32,14 +32,14 @@
     position:sticky; top:0; z-index:20; background:rgba(255,255,255,.86);
     backdrop-filter:saturate(140%) blur(10px); border-bottom:1px solid var(--line);
   }
-  .topbar-inner { max-width:1080px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; gap:16px; }
-  .brand { font-family:var(--display); font-weight:700; font-size:20px; letter-spacing:-.02em; display:flex; align-items:center; gap:8px; }
+  .topbar-inner { max-width:1080px; width:100%; margin:0 auto; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+  .brand { font-family:var(--display); font-weight:700; font-size:20px; letter-spacing:-.02em; display:flex; align-items:center; gap:8px; min-width:0; }
   .brand-logo { display:inline-grid; place-items:center; background:var(--ink); border-radius:10px; padding:5px 8px; }
   .brand-logo img { height:28px; width:auto; display:block; }
-  .brand-name { letter-spacing:-.02em; }
+  .brand-name { letter-spacing:-.02em; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .brand-accent { color:var(--accent); }
   .brand .sub { font-family:var(--body); font-weight:500; font-size:12px; color:var(--dim); letter-spacing:.02em; margin-left:4px; }
-  .topbar-actions { margin-left:auto; display:flex; gap:9px; }
+  .topbar-actions { margin-left:auto; display:flex; flex-wrap:wrap; gap:9px; justify-content:flex-end; }
 
   .btn {
     font-family:var(--body); font-size:13px; font-weight:600; border-radius:10px;
@@ -125,7 +125,7 @@
   .readout { font-size:12px; color:var(--steel); margin-left:4px; }
 
   /* table */
-  .table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius-sm); }
+  .table-scroll { overflow-x:visible; border:1px solid var(--line); border-radius:var(--radius-sm); }
   table.de-table { border-collapse:collapse; width:100%; min-width:760px; }
   table.de-table thead th {
     text-align:left; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
@@ -159,6 +159,63 @@
     .topbar-inner { padding:12px 16px; }
     .brand .sub { display:none; }
     .hero { padding:20px 18px 6px; }
+  }
+
+
+  /* Responsive layout: avoid app-level horizontal scrolling/zooming. */
+  img, svg, canvas { max-width:100%; }
+  .de-cell-input { min-width:0; }
+
+  @media (max-width:860px) {
+    .table-scroll { overflow-x:visible; border:0; border-radius:0; }
+    table.de-table { display:block; width:100%; min-width:0; }
+    table.de-table thead { display:none; }
+    table.de-table tbody { display:block; }
+    table.de-table tr { display:block; width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); margin-bottom:12px; overflow:hidden; }
+    table.de-table tr:last-child { margin-bottom:0; }
+    table.de-table td { display:grid; grid-template-columns:92px minmax(0,1fr); align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--line); }
+    table.de-table tr:last-child td { border-bottom:1px solid var(--line); }
+    table.de-table td:last-child { border-bottom:0; }
+    table.de-table td::before { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--dim); }
+    table.de-table td:nth-child(1)::before { content:'W/D'; }
+    table.de-table td:nth-child(2)::before { content:'Exercise'; }
+    table.de-table td:nth-child(3)::before { content:'Weight'; }
+    table.de-table td:nth-child(4)::before { content:'Sets'; }
+    table.de-table td:nth-child(5)::before { content:'Reps'; }
+    table.de-table td:nth-child(6)::before { content:'RPE'; }
+    table.de-table td:nth-child(7)::before { content:'Notes'; }
+    table.de-table td:nth-child(8) { display:flex; justify-content:flex-end; }
+    table.de-table td:nth-child(8)::before { display:none; }
+    .de-wd, .de-wt, .de-sets, .de-reps, .de-rpe { width:100%; }
+    .de-row-actions { width:100%; justify-content:flex-end; }
+    th.c-wd, th.c-wt, th.c-sets, th.c-reps, th.c-rpe, th.c-act { width:auto; }
+  }
+
+  @media (max-width:720px) {
+    .topbar-inner { flex-wrap:wrap; align-items:flex-start; }
+    .brand { flex:1 1 100%; }
+    .topbar-actions { margin-left:0; width:100%; }
+    .topbar-actions .btn { flex:1 1 0; min-width:0; }
+    .hero-top { align-items:flex-start; }
+    .hero-right { width:100%; text-align:left; }
+    .seg { width:100%; }
+    .seg-btn { flex:1 1 0; }
+    .filters select, .nav-grp { width:100%; }
+    .nav-grp { justify-content:space-between; flex-wrap:wrap; }
+    .readout { margin-left:0; flex:1 1 100%; }
+  }
+
+  @media (max-width:430px) {
+    body { font-size:14px; }
+    .wrap { padding:12px; }
+    .panel-head { padding:16px 16px 0; }
+    .panel-body { padding:14px 16px 16px; }
+    .hero { padding:18px 16px 6px; }
+    .hero-figure { align-items:flex-start; flex-direction:column; gap:6px; }
+    .hero-num { font-size:clamp(38px, 18vw, 64px); }
+    table.de-table td { grid-template-columns:1fr; gap:4px; }
+    table.de-table td::before { margin-bottom:0; }
+    .de-num.de-cell-input { text-align:left; }
   }
 </style>
 </head>
