@@ -71,11 +71,6 @@
   .seg-btn { border:0; background:transparent; font-family:var(--body); font-size:12.5px; font-weight:600; color:var(--steel); padding:6px 13px; border-radius:7px; cursor:pointer; }
   .seg-btn.active { background:var(--accent); color:#fff; }
   .chart-controls { margin-bottom:14px; }
-  .ff-start-card { margin:0 0 14px; padding:13px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface2); }
-  .ff-start-title { font-size:12.5px; font-weight:700; color:var(--ink); margin-bottom:5px; }
-  .ff-start-help { font-size:12px; color:var(--dim); margin:7px 0 0; line-height:1.35; }
-  .ff-start-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; align-items:end; }
-  .ff-start-grid .field label { color:var(--steel); }
   .chart-wrap { position:relative; width:100%; height:248px; }
   .chart-wrap-dark { background:#14161c; border-radius:var(--radius-sm); padding:10px 12px; }
   .chart-empty { display:none; color:var(--dim); font-size:13.5px; padding:34px 4px; text-align:center; }
@@ -157,8 +152,6 @@
   .de-wt { width:78px; } .de-sets, .de-reps, .de-rpe { width:62px; }
   .de-row-invalid td { background:var(--bad-soft); }
   .de-row-invalid .de-wd { color:var(--bad); }
-  tr.de-rest-row td { background:#eef6f1; }
-  tr.de-rest-row .de-ex { color:#1f9e8a; font-weight:600; font-style:italic; }
   .de-row-actions { display:flex; gap:3px; justify-content:flex-end; align-items:center; }
   .de-del-btn { border:1px solid var(--line); background:var(--surface); border-radius:7px; width:28px; height:28px; cursor:pointer; color:var(--steel); font-size:13px; line-height:1; }
   .de-del-btn:hover { border-color:var(--bad); color:var(--bad); }
@@ -240,7 +233,6 @@
         <div class="bar toolbar">
           <button class="add-btn solid" onclick="addEditorRow()">+ Add row</button>
           <button class="add-btn" onclick="addEditorWeek()" title="Add a fresh week with 2 blank rows per day">+ Add week</button>
-          <button class="add-btn" onclick="addRestDay()" title="Log a recovery day (no training load) — feeds the readiness &amp; performance-potential models">+ Rest day</button>
           <button class="add-btn undo" id="deUndoBtn" onclick="undoDeleteRow()" style="display:none" title="Restore the most recently deleted row (up to 5)">&#8634; Undo delete</button>
           <span class="count" id="deRowCount"></span>
         </div>
@@ -339,7 +331,7 @@
       <div class="panel-head">
         <div class="eyebrow">Recovery</div>
         <div class="panel-title">Readiness <span class="panel-kpi" id="readyKpi">&ndash;</span></div>
-        <div class="panel-desc">A 0&ndash;100 estimate of how recovered and primed you are going into each session &mdash; Sheiko tracks readiness from wellness check-ins; here it&rsquo;s derived from your training load (acute:chronic work ratio, recent heavy sessions) and the <strong>rest days</strong> between sessions: logging a <em>Rest Day</em> raises the readiness of the work that follows. Colour runs <span style="color:#e23b3b;font-weight:700">red (low)</span> &rarr; <span style="color:#2f6bff;font-weight:700">blue (mid)</span> &rarr; <span style="color:#9aa0ad;font-weight:700">white (peak)</span>.</div>
+        <div class="panel-desc">A 0&ndash;100 estimate of how recovered and primed you are going into each session &mdash; Sheiko tracks readiness from wellness check-ins; here it&rsquo;s derived from your training load (acute:chronic work ratio, recent heavy/back-to-back sessions, and fresh-week recovery). Colour runs <span style="color:#e23b3b;font-weight:700">red (low)</span> &rarr; <span style="color:#2f6bff;font-weight:700">blue (mid)</span> &rarr; <span style="color:#9aa0ad;font-weight:700">white (peak)</span>.</div>
       </div>
       <div class="panel-body">
         <div class="chart-controls">
@@ -350,55 +342,6 @@
         </div>
         <div class="chart-wrap chart-wrap-dark" id="readyChartWrap"><canvas id="readyChart" role="img" aria-label="Readiness score per session or week"></canvas></div>
         <div class="chart-empty" id="readyEmpty">Log a few sessions to estimate readiness. Setting your 1-rep maxes sharpens it by flagging heavy days.</div>
-      </div>
-    </section>
-
-    <!-- Fitness–Fatigue / Performance Potential (Banister impulse-response) -->
-    <section class="panel" id="panelFF">
-      <div class="panel-head">
-        <div class="eyebrow">Impulse–response model</div>
-        <div class="panel-title">Performance potential <span class="panel-kpi" id="ffKpi">&ndash;</span></div>
-        <div class="panel-desc">The fitness&ndash;fatigue model from your Sheiko NL document. Each session&rsquo;s <strong>stress</strong> = &Sigma;(reps &times; intensity&sup2; &times; lift factor) feeds two trends: <strong style="color:#1f9e8a">Fitness</strong> (slow 42-day average = adaptation) and <strong style="color:#d9663a">Fatigue</strong> (fast 7-day average = recent stress). <strong style="color:#2f43e0">Form</strong> = Fitness &minus; Fatigue is your readiness to perform. Logged <strong>Rest Days</strong> (D1&ndash;D7) carry zero load, so fatigue decays through them and the curve keeps running during recovery.</div>
-      </div>
-      <div class="panel-body">
-        <div class="chart-controls">
-          <div class="seg">
-            <button class="seg-btn" id="ffWeeklyBtn" onclick="setFFGran('weekly')">Weekly</button>
-            <button class="seg-btn active" id="ffDailyBtn" onclick="setFFGran('daily')">Daily</button>
-          </div>
-        </div>
-
-        <div class="ff-start-card" id="ffStartControls">
-          <div class="ff-start-title">Starting condition / cold-start baseline</div>
-          <div class="ff-start-grid">
-            <div class="field">
-              <label for="ffStartMode">Starting condition</label>
-              <select id="ffStartMode">
-                <option value="balanced" selected>Balanced / normal training</option>
-                <option value="fresh">Fresh / after deload</option>
-                <option value="fatigued">Fatigued / carrying fatigue</option>
-                <option value="custom">Custom fitness and fatigue</option>
-                <option value="zero">Legacy zero start</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="ffBaselineLoad">Baseline daily stress</label>
-              <input id="ffBaselineLoad" type="number" min="0" step="0.1" placeholder="Auto: first session">
-            </div>
-            <div class="field">
-              <label for="ffStartFitness">Custom starting fitness</label>
-              <input id="ffStartFitness" type="number" min="0" step="0.1" placeholder="Only for Custom">
-            </div>
-            <div class="field">
-              <label for="ffStartFatigue">Custom starting fatigue</label>
-              <input id="ffStartFatigue" type="number" min="0" step="0.1" placeholder="Only for Custom">
-            </div>
-          </div>
-          <div class="ff-start-help" id="ffStartHelp">Balanced seeds Fitness and Fatigue equally, so Week 1 Day 1 starts from a trained but neutral state instead of a false zero-history state.</div>
-        </div>
-
-        <div class="chart-wrap" id="ffChartWrap"><canvas id="ffChart" role="img" aria-label="Fitness, fatigue and form over time"></canvas></div>
-        <div class="chart-empty" id="ffEmpty">Set your 1-rep maxes above and log Squat / Bench / Deadlift working sets to model fitness, fatigue and form.</div>
       </div>
     </section>
 
@@ -420,15 +363,6 @@ const LIFT_MAP = {
   Deadlift: { keywords: ['deadlift'],     color: '#d9663a', light: '#f0926a', key: 'dl' }
 };
 const CHART_EXCLUDED = ['pause squat','close grip','spoto','larsen','cgbp','db incline','face pull','tricep','leg curl','hanging','band pull','barbell row','lat pulldown','rdl','romanian','foam','lateral raise','walking','incline','ohp','overhead','front squat'];
-
-// A logged "Rest Day" row marks a recovery day. It carries no training load but
-// is kept (and exported) so the readiness / performance-potential models know a
-// day was deliberate rest rather than just unlogged. Weeks run D1–D7.
-function isRestName(ex) {
-  const s = (ex || '').trim().toLowerCase();
-  return s === 'rest day' || s === 'rest' || s === 'rest-day' || s === 'restday' || s === 'off' || s === 'rest/recovery';
-}
-function isRestRow(r) { return r && isRestName(r.exercise); }
 
 /* ── CSV PARSING (identical format to the powerlifting dashboard) ── */
 function parseCSVLine(line) {
@@ -563,7 +497,6 @@ function deEscapeAttr(s) {
 function makeEditorRow(row) {
   const tr = document.createElement('tr');
   tr.className = 'de-row';
-  if (isRestName(row.exercise)) tr.classList.add('de-rest-row');
   const wd = (row.week != null && row.day != null) ? ('W' + row.week + 'D' + row.day) : '';
   tr.innerHTML =
     '<td class="de-handle-cell"><span class="de-drag-handle" title="Drag to reorder" aria-label="Drag to reorder row">&#8942;&#8942;</span></td>' +
@@ -585,10 +518,6 @@ function renderEditorTable(rows) {
   rows.forEach(r => body.appendChild(makeEditorRow(r)));
   body.oninput = (e) => {
     if (e.target.classList && e.target.classList.contains('de-wd')) applyEditorFilter();
-    if (e.target.classList && e.target.classList.contains('de-ex')) {
-      const tr = e.target.closest('tr');
-      if (tr) tr.classList.toggle('de-rest-row', isRestName(e.target.value));
-    }
     scheduleEditorPreview();
   };
   attachDragListeners(body);
@@ -722,33 +651,6 @@ function addEditorRow() {
   scheduleEditorPreview();
   const ex = tr.querySelector('.de-ex');
   if (ex) ex.focus();
-}
-// Add a "Rest Day" row on the next free day (D1–D7) of the target week.
-function addRestDay() {
-  const body = document.getElementById('deTableBody');
-  const wSel = document.getElementById('deWeekSelect');
-  const filterWeek = (wSel && wSel.value !== 'all') ? parseInt(wSel.value, 10) : null;
-
-  let week;
-  if (filterWeek != null) week = filterWeek;
-  else {
-    week = 1;
-    body.querySelectorAll('tr').forEach(tr => { const wd = parseWD(tr.querySelector('.de-wd').value); if (wd && wd.week > week) week = wd.week; });
-  }
-  // Next unused day in that week, capped at 7
-  let maxDay = 0;
-  body.querySelectorAll('tr').forEach(tr => { const wd = parseWD(tr.querySelector('.de-wd').value); if (wd && wd.week === week) maxDay = Math.max(maxDay, wd.day); });
-  const day = Math.min(7, maxDay + 1) || 1;
-
-  const tr = makeEditorRow({ week, day, exercise: 'Rest Day', weight: '', sets: '', reps: '', rpe: '', notes: '' });
-  body.appendChild(tr);
-  // keep filters in sync (new day may need to appear in the day dropdown)
-  const wd = readEditorWeekDays();
-  populateWeekFilter(wd);
-  populateDayFilter(wd);
-  applyEditorFilter();
-  scheduleEditorPreview();
-  tr.scrollIntoView({ block: 'nearest' });
 }
 function readEditorWeekDays() {
   const out = [];
@@ -999,14 +901,10 @@ function collectEditorState(markInvalid) {
     const sets = parseInt(setsRaw, 10);
     const reps = parseInt(repsRaw, 10);
     const rowEmpty = !wdRaw.trim() && !exercise && !weight && !setsRaw && !repsRaw && !rpe && !notes;
-    const rest = isRestName(exercise);
-    // A week runs D1–D7; days outside that range are invalid.
-    const dayInRange = wd && wd.day >= 1 && wd.day <= 7;
-    // Rest-day rows only need a valid W/D; training rows also need exercise + sets + reps.
-    const valid = rest ? !!dayInRange : (dayInRange && exercise && !isNaN(sets) && !isNaN(reps));
+    const valid = wd && exercise && !isNaN(sets) && !isNaN(reps);
     tr.classList.toggle('de-row-invalid', markInvalid && !valid && !rowEmpty);
     if (!valid) { if (!rowEmpty) invalid++; return; }
-    rows.push({ week: wd.week, day: wd.day, exercise, weight, sets, reps, rpe, notes, rest });
+    rows.push({ week: wd.week, day: wd.day, exercise, weight, sets, reps, rpe, notes });
   });
   return { name, block, weightClass: klass, maxes, maxesEquipped, rows, invalid };
 }
@@ -1047,7 +945,6 @@ function computeTonnage(rows, gran) {
   const map = new Map();
   let grand = 0;
   rows.forEach(r => {
-    if (isRestRow(r)) return;                      // rest days carry no load
     const sets = parseInt(r.sets, 10), reps = parseInt(r.reps, 10);
     if (isNaN(sets) || isNaN(reps)) return;
     const w = parseFloat(r.weight);
@@ -1085,7 +982,6 @@ function refreshEditorPreview() {
   refreshNLChart(state.rows, state.maxes);
   refreshE1rmChart(state.rows);
   refreshReadinessChart(state.rows, state.maxes);
-  refreshFFChart(state.rows, state.maxes);
 }
 
 function drawTonnageChart(labels, totals) {
@@ -1142,7 +1038,6 @@ function computeNL(rows, gran, maxes) {
   let grand = 0;
   let skippedNoMax = 0;   // rows whose lift has no 1RM set
   rows.forEach(r => {
-    if (isRestRow(r)) return;                   // rest days carry no load
     const sets = parseInt(r.sets, 10), reps = parseInt(r.reps, 10);
     if (isNaN(sets) || isNaN(reps) || sets < 1 || reps < 1) return;
 
@@ -1278,7 +1173,6 @@ function computeE1rm(rows, gran) {
   // map key -> { label, week, day, best:{Squat,Bench,Deadlift} }
   const map = new Map();
   rows.forEach(r => {
-    if (isRestRow(r)) return;                            // rest days carry no load
     const reps = parseInt(r.reps, 10);
     if (isNaN(reps) || reps < 1 || reps > 5) return;     // cap at 5 reps
     const weight = parseFloat(r.weight);
@@ -1397,23 +1291,15 @@ let readyChart = null;
 
 function computeReadiness(rows, maxes) {
   maxes = maxes || {};
+  const dayKeys = [...new Set(rows.map(r => r.week + '-' + r.day))].sort((a, b) => {
+    const [aw, ad] = a.split('-').map(Number);
+    const [bw, bd] = b.split('-').map(Number);
+    return aw !== bw ? aw - bw : ad - bd;
+  });
 
-  // Explicit rest days (by calendar-day index) — deliberate recovery markers.
-  const dayIndex = (w, d) => (w - 1) * 7 + (d - 1);
-  const restDayIdx = new Set();
-  rows.forEach(r => { if (isRestRow(r)) restDayIdx.add(dayIndex(r.week, r.day)); });
-
-  // Training sessions = (week,day) groups that contain real work (not rest).
-  const trainKeys = [...new Set(rows.filter(r => !isRestRow(r)).map(r => r.week + '-' + r.day))]
-    .sort((a, b) => {
-      const [aw, ad] = a.split('-').map(Number);
-      const [bw, bd] = b.split('-').map(Number);
-      return aw !== bw ? aw - bw : ad - bd;
-    });
-
-  const sessions = trainKeys.map((key, i) => {
+  const sessions = dayKeys.map((key, i) => {
     const [w, d] = key.split('-').map(Number);
-    const sess = rows.filter(r => r.week === w && r.day === d && !isRestRow(r));
+    const sess = rows.filter(r => r.week === w && r.day === d);
     let ton = 0, maxPct = 0, peakRpe = 0;
     sess.forEach(r => {
       const wt = parseFloat(r.weight); const sets = parseInt(r.sets, 10); const reps = parseInt(r.reps, 10);
@@ -1426,8 +1312,8 @@ function computeReadiness(rows, maxes) {
       const rpe = parseFloat(r.rpe);
       if (!isNaN(rpe)) peakRpe = Math.max(peakRpe, rpe);
     });
-    return { pos: i, week: w, day: d, t: dayIndex(w, d), label: 'W' + w + 'D' + d, tonnage: ton, maxPct, peakRpe,
-             hasHeavy: maxPct >= 0.85 || peakRpe >= 9, veryHeavy: maxPct >= 0.90 || peakRpe >= 9.5 };
+    return { pos: i, week: w, day: d, label: 'W' + w + 'D' + d, tonnage: ton, maxPct, peakRpe,
+             hasHeavy: maxPct >= 0.85 || peakRpe >= 9 };
   });
 
   function acrScore(acr) {
@@ -1439,15 +1325,6 @@ function computeReadiness(rows, maxes) {
     return Math.max(30, 65 - (acr - 1.5) * 30);
   }
 
-  // Count calendar days of rest between two day indices, crediting an explicit
-  // "Rest Day" row a little more than a merely-unlogged gap day.
-  function restBetween(prevT, curT) {
-    if (prevT == null) return 2;            // first session — assume arrived rested
-    let rest = 0;
-    for (let t = prevT + 1; t < curT; t++) rest += restDayIdx.has(t) ? 1.2 : 1.0;
-    return rest;
-  }
-
   const daily = sessions.map((s, i) => {
     const acute = sessions.slice(Math.max(0, i - 3), i).reduce((sum, x) => sum + x.tonnage, 0);
     const prevTons = sessions.slice(0, i).map(x => x.tonnage);
@@ -1455,20 +1332,14 @@ function computeReadiness(rows, maxes) {
     const chronic = chronicPerSession * 3;
     const acr = chronic > 0 ? acute / chronic : (i < 3 ? 0.3 : 1.0);
     const base = i === 0 ? 75 : acrScore(acr);
-
-    const prevT = i > 0 ? sessions[i - 1].t : null;
-    const rest = restBetween(prevT, s.t);               // rest days before this session
-    const gap = prevT == null ? Infinity : s.t - prevT;  // calendar days since last session
-
-    // Rest dissipates the previous session's fatigue; back-to-back days carry it.
-    const decay = rest >= 2 ? 0.2 : rest >= 1 ? 0.55 : 1;
-    const heavyPen  = i > 0 && sessions[i - 1].hasHeavy  ? 8 * decay : 0;
-    const vheavyPen = i > 0 && sessions[i - 1].veryHeavy ? 5 * decay : 0;
-    const b2bPen    = gap === 1 ? 7 : 0;                  // trained again with no rest day
-    const restBonus = Math.min(16, rest * 7);            // more rest → fresher
-
-    const score = Math.min(100, Math.max(1, Math.round(base - heavyPen - vheavyPen - b2bPen + restBonus)));
-    return { week: s.week, day: s.day, label: s.label, score, rest: Math.round(rest * 10) / 10 };
+    const heavyPen = i > 0 && sessions[i - 1].hasHeavy ? 8 : 0;
+    const vheavyPen = i > 0 && (sessions[i - 1].maxPct >= 0.90 || sessions[i - 1].peakRpe >= 9.5) ? 5 : 0;
+    const consec = (() => { let c = 0; for (let j = i - 1; j >= Math.max(0, i - 4); j--) { if (sessions[j]) c++; else break; } return c; })();
+    const consecPen = consec * 3;
+    const isFreshWeek = i === 0 || sessions[i - 1].week < s.week;
+    const freshBonus = isFreshWeek ? 12 : 0;
+    const score = Math.min(100, Math.max(1, Math.round(base - heavyPen - vheavyPen - consecPen + freshBonus)));
+    return { week: s.week, day: s.day, label: s.label, score };
   });
 
   const weeks = [...new Set(daily.map(d => d.week))].sort((a, b) => a - b);
@@ -1565,243 +1436,6 @@ function setReadyGran(g) {
   document.getElementById('readyWeeklyBtn').className = g === 'weekly' ? 'seg-btn active' : 'seg-btn';
   const state = collectEditorState(false);
   refreshReadinessChart(state.rows, state.maxes);
-}
-
-/* ── FITNESS–FATIGUE / PERFORMANCE POTENTIAL ──────────────────────────────
-   From the uploaded Sheiko NL Readiness doc, cross-checked against the
-   Banister impulse-response model (a.k.a. TrainingPeaks PMC). Each session's
-   load is the doc's Session Stress = Σ(reps × intensity² × liftFactor) over the
-   competition lifts. That daily load drives two exponentially-weighted averages:
-
-       Fitness (CTL) = EWMA, 42-day time constant   (slow — adaptation)
-       Fatigue (ATL) = EWMA, 7-day time constant    (fast — recent stress)
-       Form          = Fitness − Fatigue            (readiness / performance potential)
-
-   The doc offered two decay settings (§4 daily ×0.75/×0.95 and §8 42/7-day
-   EWMA); they disagree. I use the §8 EWMA because it is the validated,
-   universally-used parameterisation and §4 works out to ~4-day/~20-day
-   constants. Standard iterative form:  X_t = X_{t-1} + (load_t − X_{t-1})/N.
-
-   Sessions are placed on a calendar-day timeline as day = (week−1)×7 + (day−1),
-   so rest days between training days decay fatigue correctly.                */
-const FF_LIFT_FACTOR = { Squat: 1.0, Bench: 0.7, Deadlift: 1.2 };
-const FF_TAU_FIT = 42, FF_TAU_FAT = 7;
-let ffGran = 'daily';
-let ffChart = null;
-
-function getFFStartSettings() {
-  const modeEl = document.getElementById('ffStartMode');
-  const baseEl = document.getElementById('ffBaselineLoad');
-  const fitEl  = document.getElementById('ffStartFitness');
-  const fatEl  = document.getElementById('ffStartFatigue');
-  const num = el => { const v = el ? parseFloat(el.value) : NaN; return !isNaN(v) && v >= 0 ? v : null; };
-  return {
-    mode: modeEl ? modeEl.value : 'balanced',
-    baseline: num(baseEl),
-    customFitness: num(fitEl),
-    customFatigue: num(fatEl)
-  };
-}
-
-function resolveFFStart(loadByDay, settings) {
-  settings = settings || getFFStartSettings();
-  const nonZeroLoads = [...loadByDay.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(entry => entry[1])
-    .filter(v => v > 0);
-  const autoBaseline = nonZeroLoads.length ? nonZeroLoads[0] : 0;
-  const baseline = settings.baseline != null ? settings.baseline : autoBaseline;
-
-  if (settings.mode === 'zero') return { ctl: 0, atl: 0, baseline, autoBaseline };
-  if (settings.mode === 'fresh') return { ctl: baseline, atl: baseline * 0.85, baseline, autoBaseline };
-  if (settings.mode === 'fatigued') return { ctl: baseline, atl: baseline * 1.15, baseline, autoBaseline };
-  if (settings.mode === 'custom') {
-    return {
-      ctl: settings.customFitness != null ? settings.customFitness : baseline,
-      atl: settings.customFatigue != null ? settings.customFatigue : baseline,
-      baseline, autoBaseline
-    };
-  }
-  return { ctl: baseline, atl: baseline, baseline, autoBaseline };
-}
-
-function updateFFStartHelp() {
-  const el = document.getElementById('ffStartHelp');
-  if (!el) return;
-  const settings = getFFStartSettings();
-  const state = collectEditorState(false);
-  const res = computeFF(state.rows, state.maxes, settings);
-  if (!res.hasData) {
-    el.textContent = 'Balanced seeds Fitness and Fatigue equally, so Week 1 Day 1 starts from a trained but neutral state instead of a false zero-history state.';
-    return;
-  }
-  const start = res.start || {};
-  const autoTxt = start.autoBaseline ? start.autoBaseline.toFixed(1) : '0.0';
-  const baseTxt = start.baseline ? start.baseline.toFixed(1) : '0.0';
-  const modeText = settings.mode === 'zero' ? 'Legacy zero start keeps Fitness and Fatigue at 0 before day 1; this is useful for comparison but often overstates early fatigue.'
-    : settings.mode === 'fresh' ? 'Fresh starts Fatigue 15% below Fitness, useful after a real deload or taper.'
-    : settings.mode === 'fatigued' ? 'Fatigued starts Fatigue 15% above Fitness, useful when the lifter enters the block already loaded.'
-    : settings.mode === 'custom' ? 'Custom uses the Fitness and Fatigue values you enter; blanks fall back to the baseline.'
-    : 'Balanced starts Fitness and Fatigue equal, which treats the lifter as trained but neutral.';
-  el.textContent = modeText + ' Baseline: ' + baseTxt + ' stress/day. Auto baseline from first session: ' + autoTxt + '.';
-}
-
-function computeFF(rows, maxes, startSettings) {
-  maxes = maxes || {};
-
-  // 1) Session Stress per (week,day)
-  const sessMap = new Map();
-  const restDayIdx = new Set();
-  rows.forEach(r => {
-    if (isRestRow(r)) { restDayIdx.add((r.week - 1) * 7 + (r.day - 1)); return; }  // rest = 0 load
-    const sets = parseInt(r.sets, 10), reps = parseInt(r.reps, 10);
-    if (isNaN(sets) || isNaN(reps) || sets < 1 || reps < 1) return;
-    const weight = parseFloat(r.weight);
-    if (isNaN(weight) || weight <= 0) return;
-    const lift = classifyLiftChart(r.exercise);
-    if (!lift) return;                       // competition lifts only (need %1RM)
-    const oneRM = maxes[lift];
-    if (!oneRM || oneRM <= 0) return;
-    const intensity = weight / oneRM;        // fraction of 1RM
-    const factor = FF_LIFT_FACTOR[lift] || 0.3;
-    const stress = (sets * reps) * (intensity * intensity) * factor;
-    const key = r.week + '-' + r.day;
-    if (!sessMap.has(key)) sessMap.set(key, { week: r.week, day: r.day, stress: 0 });
-    sessMap.get(key).stress += stress;
-  });
-
-  if (!sessMap.size) return { hasData: false };
-
-  // 2) Lay sessions on a calendar-day timeline; rest days carry zero load. The
-  //    timeline is extended through any logged Rest Day rows so trailing
-  //    recovery (fatigue decaying, form rising) is shown.
-  const sessions = [...sessMap.values()];
-  const dayIndex = s => (s.week - 1) * 7 + (s.day - 1);
-  const loadByDay = new Map();
-  let lastDay = 0;
-  sessions.forEach(s => {
-    const t = dayIndex(s);
-    loadByDay.set(t, (loadByDay.get(t) || 0) + s.stress);
-    if (t > lastDay) lastDay = t;
-  });
-  restDayIdx.forEach(t => { if (t > lastDay) lastDay = t; });   // include trailing rest days
-
-  // 3) Iterative EWMA across every day (incl. rest days). The starting
-  //    condition seeds CTL/ATL to avoid the misleading cold-start assumption
-  //    that the athlete had zero prior training history before W1D1.
-  const aFit = 1 / FF_TAU_FIT, aFat = 1 / FF_TAU_FAT;
-  const start = resolveFFStart(loadByDay, startSettings);
-  let ctl = start.ctl, atl = start.atl;
-  const days = [];
-  for (let t = 0; t <= lastDay; t++) {
-    const load = loadByDay.get(t) || 0;
-    ctl = ctl + (load - ctl) * aFit;
-    atl = atl + (load - atl) * aFat;
-    const week = Math.floor(t / 7) + 1, dow = (t % 7) + 1;
-    days.push({ t, week, dow, isSession: loadByDay.has(t), isRest: restDayIdx.has(t),
-                fitness: ctl, fatigue: atl, form: ctl - atl });
-  }
-  return { hasData: true, days, lastDay, start };
-}
-
-function ffFormLabel(form, fitness) {
-  // Normalise Form to the athlete's own scale (fraction of current Fitness)
-  const r = fitness > 0 ? form / fitness : 0;
-  if (r > 0.05)  return { text: 'Fresh — room to push intensity', tone: 'fresh' };
-  if (r > -0.10) return { text: 'Balanced — train as planned',    tone: 'ok' };
-  if (r > -0.30) return { text: 'Loaded — productive overload',   tone: 'load' };
-  return { text: 'High fatigue — consider a deload', tone: 'deload' };
-}
-
-function refreshFFChart(rows, maxes) {
-  const panel  = document.getElementById('panelFF');
-  const canvas = document.getElementById('ffChart');
-  if (!panel || !canvas) return;
-
-  const startSettings = getFFStartSettings();
-  const res = computeFF(rows, maxes, startSettings);
-  panel.classList.toggle('is-empty', !res.hasData);
-  updateFFStartHelp();
-
-  // KPI: latest Form + interpretation
-  const kpiEl = document.getElementById('ffKpi');
-  if (!res.hasData) {
-    kpiEl.textContent = '\u2013'; kpiEl.style.color = '';
-    if (ffChart) { ffChart.destroy(); ffChart = null; }
-    return;
-  }
-
-  let series = res.days;
-  if (ffGran === 'weekly') {
-    // one snapshot per week — the last day present in each week
-    const byWeek = new Map();
-    res.days.forEach(d => byWeek.set(d.week, d));   // later days overwrite → end-of-week
-    series = [...byWeek.values()].sort((a, b) => a.week - b.week);
-  }
-
-  const last = res.days[res.days.length - 1];
-  const verdict = ffFormLabel(last.form, last.fitness);
-  kpiEl.textContent = (last.form >= 0 ? '+' : '') + last.form.toFixed(1) + ' form';
-  kpiEl.style.color = last.form >= 0 ? '#2f43e0' : '#d9663a';
-
-  if (ffChart) { ffChart.destroy(); ffChart = null; }
-  if (typeof Chart === 'undefined') return;
-
-  const css  = getComputedStyle(document.documentElement);
-  const ink  = (css.getPropertyValue('--steel') || '#646b7a').trim();
-  const line = (css.getPropertyValue('--line')  || '#e2e5ec').trim();
-
-  const labels = series.map(d => ffGran === 'weekly' ? ('W' + d.week) : (d.dow === 1 ? 'W' + d.week : ''));
-  const titleFor = (i) => { const d = series[i]; return 'W' + d.week + ' D' + d.dow; };
-
-  ffChart = new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Form (potential)', data: series.map(d => +d.form.toFixed(2)),
-          borderColor: '#2f43e0', backgroundColor: 'rgba(47,67,224,0.10)',
-          borderWidth: 3, tension: 0.3, fill: 'origin', pointRadius: 0, pointHoverRadius: 5, order: 0 },
-        { label: 'Fitness', data: series.map(d => +d.fitness.toFixed(2)),
-          borderColor: '#1f9e8a', backgroundColor: '#1f9e8a',
-          borderWidth: 2, tension: 0.3, fill: false, pointRadius: 0, pointHoverRadius: 5, order: 1 },
-        { label: 'Fatigue', data: series.map(d => +d.fatigue.toFixed(2)),
-          borderColor: '#d9663a', backgroundColor: '#d9663a',
-          borderWidth: 2, tension: 0.3, fill: false, borderDash: [5, 3], pointRadius: 0, pointHoverRadius: 5, order: 2 }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: true, position: 'top', align: 'end',
-          labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle', color: ink, font: { size: 12 } } },
-        tooltip: {
-          backgroundColor: '#14161c', padding: 10,
-          callbacks: {
-            title: items => items.length ? titleFor(items[0].dataIndex) : '',
-            afterBody: items => {
-              const i = items[0].dataIndex; const d = series[i];
-              const v = ffFormLabel(d.form, d.fitness);
-              return '\n' + v.text;
-            }
-          }
-        }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { color: ink, font: { size: 11 }, autoSkip: true, maxRotation: 0 }, border: { color: line } },
-        y: { grid: { color: line }, ticks: { color: ink, font: { size: 11 } }, border: { display: false } }
-      }
-    }
-  });
-}
-
-function setFFGran(g) {
-  ffGran = g;
-  document.getElementById('ffDailyBtn').className  = g === 'daily'  ? 'seg-btn active' : 'seg-btn';
-  document.getElementById('ffWeeklyBtn').className = g === 'weekly' ? 'seg-btn active' : 'seg-btn';
-  const state = collectEditorState(false);
-  refreshFFChart(state.rows, state.maxes);
 }
 
 /* ── EXPORT (identical CSV format) ── */
@@ -1908,11 +1542,6 @@ document.getElementById('deFileName').addEventListener('input', () => { fileName
   const s = collectEditorState(false);
   document.getElementById('deFileName').value = defaultCsvName(s.name, s.block);
 }));
-
-document.querySelectorAll('#ffStartControls input, #ffStartControls select').forEach(el => {
-  el.addEventListener('input', () => { updateFFStartHelp(); scheduleEditorPreview(); });
-  el.addEventListener('change', () => { updateFFStartHelp(); scheduleEditorPreview(); });
-});
 
 /* ── INIT ── */
 (function initApp() {
