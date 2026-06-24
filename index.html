@@ -147,14 +147,15 @@
   .de-del-btn { border:1px solid var(--line); background:var(--surface); border-radius:7px; width:28px; height:28px; cursor:pointer; color:var(--steel); font-size:13px; line-height:1; }
   .de-del-btn:hover { border-color:var(--bad); color:var(--bad); }
   /* drag handle */
-  .de-drag-handle { cursor:grab; padding:0 4px; color:var(--dim); font-size:15px; line-height:1; user-select:none; touch-action:none; }
+  .de-drag-handle { cursor:grab; padding:2px 6px; color:var(--dim); font-size:15px; line-height:1; user-select:none; -webkit-user-select:none; touch-action:none; display:inline-block; }
+  .de-drag-handle:hover { color:var(--accent); }
   .de-drag-handle:active { cursor:grabbing; }
-  tr.de-row[draggable="true"]:active { cursor:grabbing; }
   /* row being dragged */
-  tr.de-dragging { opacity:.35; background:var(--accent-soft); }
-  /* drop-indicator line rendered via a pseudo-element on a sentinel <tr> */
-  tr.de-drop-above td { border-top:2px solid var(--accent) !important; }
-  tr.de-drop-below td { border-bottom:2px solid var(--accent) !important; }
+  tr.de-dragging { background:var(--accent-soft); box-shadow:0 6px 18px rgba(20,22,28,.12); }
+  tr.de-dragging td { border-color:transparent; }
+  /* while any drag is in progress, suppress text selection + show grabbing cursor */
+  body.de-dragging-active { cursor:grabbing; user-select:none; -webkit-user-select:none; }
+  body.de-dragging-active .de-cell-input { pointer-events:none; }
 
   /* column widths for header */
   th.c-handle { width:28px; padding:0 4px; }
@@ -442,7 +443,6 @@ function deEscapeAttr(s) {
 function makeEditorRow(row) {
   const tr = document.createElement('tr');
   tr.className = 'de-row';
-  tr.draggable = true;
   const wd = (row.week != null && row.day != null) ? ('W' + row.week + 'D' + row.day) : '';
   tr.innerHTML =
     '<td class="de-handle-cell"><span class="de-drag-handle" title="Drag to reorder" aria-label="Drag to reorder row">&#8942;&#8942;</span></td>' +
@@ -723,104 +723,73 @@ function updateUndoButton() {
   btn.style.display = '';
   btn.innerHTML = '\u21BA Undo delete (' + deletedRows.length + ')';
 }
-/* ── DRAG-AND-DROP ROW REORDERING ─────────────────────────────────────────
-   Dragging works via the HTML5 drag API. A single dragover listener on tbody
-   computes which row the pointer is over and whether the insertion point is
-   above or below its midpoint, then renders a live accent-coloured indicator
-   line. On drop the dragged row is spliced into the correct position.
-   Input focus is not stolen and the preview recomputes after every drop.     */
-let _dragSrc  = null;   // the <tr> being dragged
-let _dragOver = null;   // the <tr> currently highlighted as drop target
-let _dropPos  = null;   // 'above' | 'below'
+/* ── DRAG-AND-DROP ROW REORDERING (Pointer Events) ────────────────────────
+   Uses Pointer Events rather than the HTML5 drag API so it works identically
+   with a mouse, a finger, or a pen — the native drag API is unsupported on
+   touch devices. The dragged row is reordered live as the pointer passes the
+   midpoints of the other visible rows. Listeners are attached once per tbody,
+   and to window during a drag so movement keeps tracking outside the handle. */
+let _dragRow = null;
 
-function _clearDropIndicator() {
-  if (_dragOver) {
-    _dragOver.classList.remove('de-drop-above', 'de-drop-below');
-    _dragOver = null;
-    _dropPos  = null;
+function attachDragListeners(tbody) {
+  if (tbody._dragWired) return;   // attach exactly once per tbody element
+  tbody._dragWired = true;
+
+  tbody.addEventListener('pointerdown', e => {
+    const handle = e.target.closest('.de-drag-handle');
+    if (!handle) return;                       // only the handle starts a drag
+    if (e.button != null && e.button !== 0) return;  // left button / touch only
+    const tr = handle.closest('tr.de-row');
+    if (!tr) return;
+    e.preventDefault();                        // stop text selection / scroll
+    _dragRow = tr;
+    tr.classList.add('de-dragging');
+    document.body.classList.add('de-dragging-active');
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', onDragEnd);
+    window.addEventListener('pointercancel', onDragEnd);
+  });
+}
+
+// Insert the dragged row before the first visible row whose vertical midpoint
+// is below the pointer; if none, move it to the end.
+function onDragMove(e) {
+  if (!_dragRow) return;
+  e.preventDefault();
+  const tbody = _dragRow.parentNode;
+  if (!tbody) return;
+
+  const rows = [...tbody.querySelectorAll('tr.de-row')]
+    .filter(r => r !== _dragRow && r.style.display !== 'none');
+
+  let target = null;
+  for (const row of rows) {
+    const rect = row.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) { target = row; break; }
+  }
+
+  if (target) {
+    if (target.previousElementSibling !== _dragRow) tbody.insertBefore(_dragRow, target);
+  } else {
+    if (tbody.lastElementChild !== _dragRow) tbody.appendChild(_dragRow);
   }
 }
 
-function attachDragListeners(tbody) {
-  // ── dragstart: mark source, ghost image ──────────────────────────────────
-  tbody.addEventListener('dragstart', e => {
-    const tr = e.target.closest('tr.de-row');
-    if (!tr) return;
-    // Only initiate when the grab started on the handle (or the row itself on
-    // touch-fallback); ignore drags that started on an input cell.
-    const onHandle = e.target.closest('.de-drag-handle');
-    if (!onHandle) { e.preventDefault(); return; }
-    _dragSrc = tr;
-    tr.classList.add('de-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    // A minimal ghost: just the W/D + exercise so it is readable
-    const ghost = document.createElement('div');
-    ghost.style.cssText = 'position:fixed;top:-200px;left:0;background:#fff;border:1px solid #ccc;border-radius:8px;padding:8px 12px;font:600 13px/1 system-ui;white-space:nowrap;pointer-events:none;';
-    const wd = tr.querySelector('.de-wd').value || '—';
-    const ex = tr.querySelector('.de-ex').value || 'row';
-    ghost.textContent = wd + '  ' + ex;
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    requestAnimationFrame(() => document.body.removeChild(ghost));
-  });
+function onDragEnd() {
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragEnd);
+  if (_dragRow) _dragRow.classList.remove('de-dragging');
+  document.body.classList.remove('de-dragging-active');
+  _dragRow = null;
 
-  // ── dragover: compute insertion point + show indicator ───────────────────
-  tbody.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const tr = e.target.closest('tr.de-row');
-    if (!tr || tr === _dragSrc) { _clearDropIndicator(); return; }
-
-    const rect = tr.getBoundingClientRect();
-    const pos  = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
-
-    if (tr !== _dragOver || pos !== _dropPos) {
-      _clearDropIndicator();
-      _dragOver = tr;
-      _dropPos  = pos;
-      tr.classList.add(pos === 'above' ? 'de-drop-above' : 'de-drop-below');
-    }
-  });
-
-  // ── dragleave: clear when pointer leaves tbody entirely ───────────────────
-  tbody.addEventListener('dragleave', e => {
-    if (!tbody.contains(e.relatedTarget)) _clearDropIndicator();
-  });
-
-  // ── dragend: always clean up source styling ───────────────────────────────
-  tbody.addEventListener('dragend', () => {
-    if (_dragSrc) _dragSrc.classList.remove('de-dragging');
-    _clearDropIndicator();
-    _dragSrc = null;
-  });
-
-  // ── drop: perform the reorder ─────────────────────────────────────────────
-  tbody.addEventListener('drop', e => {
-    e.preventDefault();
-    if (!_dragSrc || !_dragOver || _dragSrc === _dragOver) {
-      _clearDropIndicator();
-      return;
-    }
-    const pos = _dropPos;
-    _clearDropIndicator();
-    _dragSrc.classList.remove('de-dragging');
-
-    if (pos === 'above') {
-      tbody.insertBefore(_dragSrc, _dragOver);
-    } else {
-      tbody.insertBefore(_dragSrc, _dragOver.nextSibling);
-    }
-
-    _dragSrc = null;
-
-    // Rebuild filters in case the reorder changes which W/Ds are visible,
-    // update counts, and recompute both charts live.
-    const wd = readEditorWeekDays();
-    populateWeekFilter(wd);
-    populateDayFilter(wd);
-    applyEditorFilter();
-    scheduleEditorPreview();
-  });
+  // The reorder may change which W/Ds appear, so rebuild filters/nav and
+  // recompute both charts.
+  const wd = readEditorWeekDays();
+  populateWeekFilter(wd);
+  populateDayFilter(wd);
+  applyEditorFilter();
+  scheduleEditorPreview();
 }
 function updateEditorRowCount() {
   const all = document.querySelectorAll('#deTableBody tr');
