@@ -579,37 +579,36 @@ function readEditorWeekDays() {
 function addEditorWeek() {
   const body = document.getElementById('deTableBody');
   const trs = [...body.querySelectorAll('tr')];
+
+  // Find the highest week number present
   let maxWeek = null;
   trs.forEach(tr => {
     const wd = parseWD(tr.querySelector('.de-wd').value);
     if (wd && (maxWeek === null || wd.week > maxWeek)) maxWeek = wd.week;
   });
-  if (maxWeek === null) {
-    body.appendChild(makeEditorRow({ week: 1, day: 1, exercise: '', weight: '', sets: '', reps: '', notes: '' }));
-    finishAddWeek(1, true); return;
+
+  const newWeek = maxWeek === null ? 1 : maxWeek + 1;
+
+  // Work out which days to create. If there's a previous week, mirror its
+  // distinct day numbers; otherwise default to days 1, 2, 3.
+  let days = [1, 2, 3];
+  if (maxWeek !== null) {
+    const prevDays = [...new Set(
+      trs
+        .map(tr => parseWD(tr.querySelector('.de-wd').value))
+        .filter(wd => wd && wd.week === maxWeek)
+        .map(wd => wd.day)
+    )].sort((a, b) => a - b);
+    if (prevDays.length) days = prevDays;
   }
-  const newWeek = maxWeek + 1;
-  const lastWeekRows = trs.filter(tr => {
-    const wd = parseWD(tr.querySelector('.de-wd').value);
-    return wd && wd.week === maxWeek;
+
+  const blank = { exercise: '', weight: '', sets: '', reps: '', rpe: '', notes: '' };
+  days.forEach(day => {
+    body.appendChild(makeEditorRow({ week: newWeek, day, ...blank }));
+    body.appendChild(makeEditorRow({ week: newWeek, day, ...blank }));
   });
-  if (!lastWeekRows.length) {
-    body.appendChild(makeEditorRow({ week: newWeek, day: 1, exercise: '', weight: '', sets: '', reps: '', notes: '' }));
-  } else {
-    lastWeekRows.forEach(src => {
-      const wd = parseWD(src.querySelector('.de-wd').value);
-      body.appendChild(makeEditorRow({
-        week: newWeek, day: wd ? wd.day : 1,
-        exercise: src.querySelector('.de-ex').value,
-        weight:   src.querySelector('.de-wt').value,
-        sets:     src.querySelector('.de-sets').value,
-        reps:     src.querySelector('.de-reps').value,
-        rpe:      src.querySelector('.de-rpe').value,
-        notes:    src.querySelector('.de-notes').value
-      }));
-    });
-  }
-  finishAddWeek(newWeek, false);
+
+  finishAddWeek(newWeek, true);
 }
 function finishAddWeek(newWeek, focusFirst) {
   const wd = readEditorWeekDays();
