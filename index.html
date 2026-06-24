@@ -72,6 +72,7 @@
   .seg-btn.active { background:var(--accent); color:#fff; }
   .chart-controls { margin-bottom:14px; }
   .chart-wrap { position:relative; width:100%; height:248px; }
+  .chart-wrap-dark { background:#14161c; border-radius:var(--radius-sm); padding:10px 12px; }
   .chart-empty { display:none; color:var(--dim); font-size:13.5px; padding:34px 4px; text-align:center; }
   .panel.is-empty .chart-wrap { display:none; }
   .panel.is-empty .chart-empty { display:block; }
@@ -322,6 +323,25 @@
         </div>
         <div class="chart-wrap" id="e1rmChartWrap"><canvas id="e1rmChart" role="img" aria-label="Estimated 1RM per session or week"></canvas></div>
         <div class="chart-empty" id="e1rmEmpty">Log Squat, Bench or Deadlift sets of 5 reps or fewer with a weight to see estimated 1RM here.</div>
+      </div>
+    </section>
+
+    <!-- Readiness (Sheiko-style, derived from training load) -->
+    <section class="panel" id="panelReadiness">
+      <div class="panel-head">
+        <div class="eyebrow">Recovery</div>
+        <div class="panel-title">Readiness <span class="panel-kpi" id="readyKpi">&ndash;</span></div>
+        <div class="panel-desc">A 0&ndash;100 estimate of how recovered and primed you are going into each session &mdash; Sheiko tracks readiness from wellness check-ins; here it&rsquo;s derived from your training load (acute:chronic work ratio, recent heavy/back-to-back sessions, and fresh-week recovery). Colour runs <span style="color:#e23b3b;font-weight:700">red (low)</span> &rarr; <span style="color:#2f6bff;font-weight:700">blue (mid)</span> &rarr; <span style="color:#9aa0ad;font-weight:700">white (peak)</span>.</div>
+      </div>
+      <div class="panel-body">
+        <div class="chart-controls">
+          <div class="seg">
+            <button class="seg-btn" id="readyWeeklyBtn" onclick="setReadyGran('weekly')">Weekly</button>
+            <button class="seg-btn active" id="readyDailyBtn" onclick="setReadyGran('daily')">Daily</button>
+          </div>
+        </div>
+        <div class="chart-wrap chart-wrap-dark" id="readyChartWrap"><canvas id="readyChart" role="img" aria-label="Readiness score per session or week"></canvas></div>
+        <div class="chart-empty" id="readyEmpty">Log a few sessions to estimate readiness. Setting your 1-rep maxes sharpens it by flagging heavy days.</div>
       </div>
     </section>
 
@@ -961,6 +981,7 @@ function refreshEditorPreview() {
   drawTonnageChart(labels, totals);
   refreshNLChart(state.rows, state.maxes);
   refreshE1rmChart(state.rows);
+  refreshReadinessChart(state.rows, state.maxes);
 }
 
 function drawTonnageChart(labels, totals) {
@@ -1255,6 +1276,166 @@ function setE1rmGran(g) {
   document.getElementById('e1rmWeeklyBtn').className = g === 'weekly' ? 'seg-btn active' : 'seg-btn';
   const state = collectEditorState(false);
   refreshE1rmChart(state.rows);
+}
+
+/* ── READINESS (Sheiko-style, derived from training load) ─────────────────
+   Sheiko Gold builds readiness from daily wellness check-ins (sleep, soreness,
+   motivation, HRV) — none of which live in a training log. So this is a
+   load-based proxy of the same idea: how recovered/primed you are going INTO a
+   session, from the acute:chronic work ratio plus penalties for recent heavy and
+   back-to-back sessions and a bonus for the start of a fresh week. Score 0–100.
+   (Ported from the powerlifting dashboard's readiness model, minus its fixed
+   peaking-block taper bonus, which doesn't apply to open-ended gym logging.)  */
+let readyGran = 'daily';
+let readyChart = null;
+
+function computeReadiness(rows, maxes) {
+  maxes = maxes || {};
+  const dayKeys = [...new Set(rows.map(r => r.week + '-' + r.day))].sort((a, b) => {
+    const [aw, ad] = a.split('-').map(Number);
+    const [bw, bd] = b.split('-').map(Number);
+    return aw !== bw ? aw - bw : ad - bd;
+  });
+
+  const sessions = dayKeys.map((key, i) => {
+    const [w, d] = key.split('-').map(Number);
+    const sess = rows.filter(r => r.week === w && r.day === d);
+    let ton = 0, maxPct = 0, peakRpe = 0;
+    sess.forEach(r => {
+      const wt = parseFloat(r.weight); const sets = parseInt(r.sets, 10); const reps = parseInt(r.reps, 10);
+      if (!isNaN(sets) && !isNaN(reps)) {
+        if (!isNaN(wt) && wt > 0) ton += wt * sets * reps;
+        const lift = (!isNaN(wt) && wt > 0) ? classifyLiftChart(r.exercise) : null;
+        const orm = lift ? maxes[lift] : null;
+        if (orm) maxPct = Math.max(maxPct, wt / orm);
+      }
+      const rpe = parseFloat(r.rpe);
+      if (!isNaN(rpe)) peakRpe = Math.max(peakRpe, rpe);
+    });
+    return { pos: i, week: w, day: d, label: 'W' + w + 'D' + d, tonnage: ton, maxPct, peakRpe,
+             hasHeavy: maxPct >= 0.85 || peakRpe >= 9 };
+  });
+
+  function acrScore(acr) {
+    if (acr < 0.5) return 55 + (acr / 0.5) * 15;
+    if (acr < 0.8) return 70 + ((acr - 0.5) / 0.3) * 15;
+    if (acr < 1.1) return 85 + ((acr - 0.8) / 0.3) * 10;
+    if (acr < 1.3) return 95 - ((acr - 1.1) / 0.2) * 10;
+    if (acr < 1.5) return 85 - ((acr - 1.3) / 0.2) * 20;
+    return Math.max(30, 65 - (acr - 1.5) * 30);
+  }
+
+  const daily = sessions.map((s, i) => {
+    const acute = sessions.slice(Math.max(0, i - 3), i).reduce((sum, x) => sum + x.tonnage, 0);
+    const prevTons = sessions.slice(0, i).map(x => x.tonnage);
+    const chronicPerSession = prevTons.length ? prevTons.reduce((a, b) => a + b, 0) / prevTons.length : s.tonnage;
+    const chronic = chronicPerSession * 3;
+    const acr = chronic > 0 ? acute / chronic : (i < 3 ? 0.3 : 1.0);
+    const base = i === 0 ? 75 : acrScore(acr);
+    const heavyPen = i > 0 && sessions[i - 1].hasHeavy ? 8 : 0;
+    const vheavyPen = i > 0 && (sessions[i - 1].maxPct >= 0.90 || sessions[i - 1].peakRpe >= 9.5) ? 5 : 0;
+    const consec = (() => { let c = 0; for (let j = i - 1; j >= Math.max(0, i - 4); j--) { if (sessions[j]) c++; else break; } return c; })();
+    const consecPen = consec * 3;
+    const isFreshWeek = i === 0 || sessions[i - 1].week < s.week;
+    const freshBonus = isFreshWeek ? 12 : 0;
+    const score = Math.min(100, Math.max(1, Math.round(base - heavyPen - vheavyPen - consecPen + freshBonus)));
+    return { week: s.week, day: s.day, label: s.label, score };
+  });
+
+  const weeks = [...new Set(daily.map(d => d.week))].sort((a, b) => a - b);
+  const weekly = weeks.map(w => {
+    const ws = daily.filter(d => d.week === w);
+    return { week: w, label: 'W' + w, score: Math.round(ws.reduce((s, d) => s + d.score, 0) / ws.length) };
+  });
+
+  return { daily, weekly };
+}
+
+// Continuous colour ramp: 1 → red, 50 → blue, 100 → white.
+function readinessColor(score) {
+  const s = Math.max(1, Math.min(100, score));
+  const red = [226, 59, 59], blue = [47, 107, 255], white = [255, 255, 255];
+  let c;
+  if (s >= 50) { const t = (s - 50) / 50; c = blue.map((b, k) => Math.round(b + (white[k] - b) * t)); }
+  else { const t = (s - 1) / 49; c = red.map((r, k) => Math.round(r + (blue[k] - r) * t)); }
+  return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+}
+
+function refreshReadinessChart(rows, maxes) {
+  const panel  = document.getElementById('panelReadiness');
+  const canvas = document.getElementById('readyChart');
+  if (!panel || !canvas) return;
+
+  const { daily, weekly } = computeReadiness(rows, maxes);
+  const points = readyGran === 'weekly' ? weekly : daily;
+  const labels = points.map(p => p.label);
+  const scores = points.map(p => p.score);
+  const hasData = scores.length > 0;
+
+  // KPI = most recent session's readiness
+  const kpiEl = document.getElementById('readyKpi');
+  if (hasData) {
+    const latest = scores[scores.length - 1];
+    kpiEl.textContent = latest + ' / 100';
+    kpiEl.style.color = readinessColor(latest === 100 ? 88 : latest); // keep readable on light header
+  } else { kpiEl.textContent = '\u2013'; kpiEl.style.color = ''; }
+
+  panel.classList.toggle('is-empty', !hasData);
+
+  if (readyChart) { readyChart.destroy(); readyChart = null; }
+  if (!hasData || typeof Chart === 'undefined') return;
+
+  const ptColors = scores.map(readinessColor);
+
+  readyChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Readiness',
+        data: scores,
+        borderColor: '#8a90a0',
+        pointBackgroundColor: ptColors,
+        pointBorderColor: ptColors,
+        pointRadius: scores.length > 30 ? 2.5 : 4.5,
+        pointHoverRadius: 6,
+        borderWidth: 2.5,
+        tension: 0.35,
+        fill: false,
+        // colour each line segment by the score it is heading INTO
+        segment: { borderColor: ctx => readinessColor(scores[ctx.p1DataIndex]) }
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#000', padding: 10, displayColors: false,
+          callbacks: {
+            label: c => ' Readiness ' + c.parsed.y + ' / 100',
+            afterLabel: c => {
+              const v = c.parsed.y;
+              return v >= 80 ? ' Primed — room to push' : v >= 60 ? ' Solid — train as planned'
+                   : v >= 40 ? ' Reduced — hold back a little' : ' Low — ease off / recover';
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.07)' }, ticks: { color: '#9aa0ad', font: { size: 11 }, autoSkip: true, maxRotation: 0 }, border: { color: 'rgba(255,255,255,0.15)' } },
+        y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.07)' }, ticks: { color: '#9aa0ad', font: { size: 11 }, stepSize: 20 }, border: { display: false } }
+      }
+    }
+  });
+}
+
+function setReadyGran(g) {
+  readyGran = g;
+  document.getElementById('readyDailyBtn').className  = g === 'daily'  ? 'seg-btn active' : 'seg-btn';
+  document.getElementById('readyWeeklyBtn').className = g === 'weekly' ? 'seg-btn active' : 'seg-btn';
+  const state = collectEditorState(false);
+  refreshReadinessChart(state.rows, state.maxes);
 }
 
 /* ── EXPORT (identical CSV format) ── */
